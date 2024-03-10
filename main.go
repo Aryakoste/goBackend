@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -18,10 +19,22 @@ type App struct {
 }
 
 type Store struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Location string `json:"location"`
+	ID          primitive.ObjectID   `bson:"_id,omitempty"`
+	Name        string               `bson:"name"`
+	Type        string               `bson:"type"`
+	Location    string               `bson:"location"`
+	ProducstIDs []primitive.ObjectID `bson:"productIds"`
 }
+
+type Product struct {
+	ID    primitive.ObjectID `bson:"_id,omitempty"`
+	Name  string             `bson:"name"`
+	Price string             `bson:"price"`
+}
+
+// func (app *App) getProductsFromStore(c *gin.Context, storeID string) {
+// 	var results []Product
+// }
 
 func (app *App) postStore(c *gin.Context) {
 	var newStore Store
@@ -42,7 +55,30 @@ func (app *App) postStore(c *gin.Context) {
 }
 
 func (app *App) getAllStores(c *gin.Context) {
+	var stores []Store
+	collection := app.Client.Database("test").Collection("stores")
 
+	cursor, err := collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching Stores"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var store Store
+
+		if err := cursor.Decode(&store); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error Decoding Store"})
+		}
+
+		stores = append(stores, store)
+	}
+	if err := cursor.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cursor Error"})
+	}
+
+	c.JSON(http.StatusOK, stores)
 }
 
 func main() {
@@ -74,6 +110,7 @@ func main() {
 	}
 
 	router.POST("addStore", app.postStore)
+	router.GET("getAllStores", app.getAllStores)
 
 	router.Run("localhost:8080")
 }
